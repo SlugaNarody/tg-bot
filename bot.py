@@ -99,7 +99,7 @@ async def send_results_to_admin(user, answers, bot, contact_link, final_phrase):
     text += f"\nФраза для пользователя: {render_final_phrase(final_phrase, contact_link)}"
     await bot.send_message(ADMIN_ID, text)
 
-# БАН-ЛИСТ для пользователей младше 18 лет
+# Бан-лист для пользователей младше 18 лет
 banned_users = set()
 
 def is_only_digits(text):
@@ -123,7 +123,6 @@ def is_text_with_letters_ratio_or_digits(text, min_ratio=0.5):
 
 @dp.message(F.text.lower().in_({"/start", "start"}))
 async def welcome(message: Message, state: FSMContext):
-    # Не пускать забаненных!
     if message.from_user.id in banned_users:
         await message.answer("Извините, доступ закрыт. Наш сервис только для лиц старше 18 лет.")
         return
@@ -219,7 +218,6 @@ async def ask_next_question(message, user_id, lang, data, state):
 
 @dp.message(SurveyState.q)
 async def handle_answer(message: Message, state: FSMContext):
-    # Не принимать ответы от забаненных
     if message.from_user.id in banned_users:
         await message.answer("Извините, доступ закрыт. Наш сервис только для лиц старше 18 лет.")
         await state.clear()
@@ -232,11 +230,12 @@ async def handle_answer(message: Message, state: FSMContext):
     q = questions[idx]
     q_text_lower = q["question"].lower()
 
-    # Валидация для каждого вопроса:
+    ERROR_MSG = "Дай ответ более корректно и открыто"
+
     # 1. "Сколько вам лет?" — только цифры, >= 18
     if "сколько вам лет" in q_text_lower:
         if not is_only_digits(message.text.strip()):
-            await message.answer("Пожалуйста, используйте только цифры для возраста.")
+            await message.answer(ERROR_MSG)
             return
         age = int(message.text.strip())
         if age < 18:
@@ -247,15 +246,14 @@ async def handle_answer(message: Message, state: FSMContext):
     # 2. Вопрос про доход — минимум 50% букв
     elif "какой доход вы хотите получать" in q_text_lower:
         if not is_text_with_letters_ratio_or_digits(message.text.strip(), min_ratio=0.5):
-            await message.answer("Пожалуйста, заполните ответ: минимум 50% текста (буквы), остальное могут быть цифры.")
+            await message.answer(ERROR_MSG)
             return
     # 3. Остальные текстовые вопросы — минимум 70% букв
     elif q["type"] == "text":
         if not is_text_with_letters_ratio(message.text.strip(), min_ratio=0.7):
-            await message.answer("Пожалуйста, заполните ответ: минимум 70% текста (буквы).")
+            await message.answer(ERROR_MSG)
             return
 
-    # Остальной ваш код (валидация выбора)
     is_source_q = ("узнали про компанию" in q_text_lower)
     if q["type"] == "choice":
         if is_source_q:
@@ -269,18 +267,12 @@ async def handle_answer(message: Message, state: FSMContext):
                 return
             valid_choices = q["choices"]
             if message.text.strip() not in valid_choices:
-                await message.answer(
-                    "Пожалуйста, выберите один из предложенных вариантов или 'Другое', если ваш вариант не указан.",
-                    reply_markup=choices_keyboard(valid_choices, special_layout=True)
-                )
+                await message.answer(ERROR_MSG, reply_markup=choices_keyboard(valid_choices, special_layout=True))
                 return
         else:
             valid_choices = [ch.strip() for ch in q["choices"]]
             if message.text.strip() not in valid_choices:
-                await message.answer(
-                    "Пожалуйста, выберите только 'Да' или 'Нет'!",
-                    reply_markup=choices_keyboard(valid_choices)
-                )
+                await message.answer(ERROR_MSG, reply_markup=choices_keyboard(valid_choices))
                 return
 
     user_state[user_id]["answers"][f"q{idx+1}"] = message.text
@@ -309,9 +301,7 @@ async def handle_manual_source(message: Message, state: FSMContext):
         return
     lang = user_state[user_id]["lang"]
     if len(message.text.strip()) < 5:
-        await message.answer(
-            "Пожалуйста, ответ должен быть не менее 5 символов!"
-        )
+        await message.answer("Дай ответ более корректно и открыто")
         return
     idx = user_state[user_id]["q_idx"]
     user_state[user_id]["answers"][f"q{idx+1}"] = message.text
