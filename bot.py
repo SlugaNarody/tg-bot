@@ -267,21 +267,34 @@ async def handle_manual_source(message: Message, state: FSMContext):
     await state.set_state(SurveyState.q)
     await ask_next_question(message, user_id, lang, data, state)
 
+from aiohttp import web
+
+WEBHOOK_HOST = os.getenv("WEBHOOK_URL")  # например: https://tg-bot-xxxxx.onrender.com
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+
+async def on_startup(bot):
+    await bot.set_webhook(WEBHOOK_URL)
+    print(f"Webhook set: {WEBHOOK_URL}")
+
+async def handle(request):
+    body = await request.text()
+    await dp.feed_webhook_update(bot, request.headers, body)
+    return web.Response()
+
 async def main():
-    await dp.start_polling(bot)
+    app = web.Application()
+    app.router.add_post(WEBHOOK_PATH, handle)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 10000)  # Render ждёт порт 10000
+    await site.start()
+
+    await on_startup(bot)
+    print("Bot is running with webhook...")
+    while True:
+        await asyncio.sleep(3600)
 
 if __name__ == "__main__":
-    import threading
-import time
-import requests
-
-def keep_alive():
-    while True:
-        try:
-            requests.get("https://tg-bot-1d4i.onrender.com")
-        except Exception as e:
-            print("Ping failed:", e)
-        time.sleep(600)  # каждые 10 минут
-
-threading.Thread(target=keep_alive, daemon=True).start()
     asyncio.run(main())
