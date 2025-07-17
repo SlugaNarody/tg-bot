@@ -269,7 +269,7 @@ async def handle_manual_source(message: Message, state: FSMContext):
 
 from aiohttp import web
 
-WEBHOOK_HOST = os.getenv("WEBHOOK_URL")  # Пример: https://tg-bot-xxxxx.onrender.com
+WEBHOOK_HOST = os.getenv("WEBHOOK_URL")  # Например, https://tg-bot-xxxxx.onrender.com
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
@@ -277,8 +277,10 @@ async def on_startup(bot):
     await bot.set_webhook(WEBHOOK_URL)
 
 async def handle(request):
-    body = await request.text()
-    await dp.feed_webhook_update(bot, request.headers, body)
+    # Получаем update как JSON-объект
+    update = await request.json()
+    # Передаём update как dict, НЕ body/text и НЕ headers!
+    await dp.feed_webhook_update(bot=bot, update=update)
     return web.Response()
 
 async def main():
@@ -288,7 +290,7 @@ async def main():
     await on_startup(bot)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 10000)  # Render ждёт открытый порт
+    site = web.TCPSite(runner, "0.0.0.0", 10000)
     await site.start()
 
     print(f"Webhook running at {WEBHOOK_URL}")
