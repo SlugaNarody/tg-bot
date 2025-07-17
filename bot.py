@@ -78,7 +78,6 @@ NAME_QUESTION = "ваше имя и фамилия"
 COUNTRY_QUESTION = "где вы территориально находитесь"
 
 def render_final_phrase(phrase: str, contact_link: str) -> str:
-    # Гарантируем что {contact_link} заменяется на @линк без лишних скобок/кавычек
     link = contact_link.strip()
     if not link.startswith("@"):
         link = f"@{link}"
@@ -100,8 +99,34 @@ async def send_results_to_admin(user, answers, bot, contact_link, final_phrase):
     text += f"\nФраза для пользователя: {render_final_phrase(final_phrase, contact_link)}"
     await bot.send_message(ADMIN_ID, text)
 
+# БАН-ЛИСТ для пользователей младше 18 лет
+banned_users = set()
+
+def is_only_digits(text):
+    return text.isdigit()
+
+def is_text_with_letters_ratio(text, min_ratio=0.7):
+    letters = re.findall(r'[a-zA-Zа-яА-ЯёЁ]', text)
+    length = len(text.replace(" ", ""))
+    if length == 0:
+        return False
+    letter_ratio = len(letters) / length
+    return letter_ratio >= min_ratio
+
+def is_text_with_letters_ratio_or_digits(text, min_ratio=0.5):
+    letters = re.findall(r'[a-zA-Zа-яА-ЯёЁ]', text)
+    length = len(text.replace(" ", ""))
+    if length == 0:
+        return False
+    letter_ratio = len(letters) / length
+    return letter_ratio >= min_ratio
+
 @dp.message(F.text.lower().in_({"/start", "start"}))
 async def welcome(message: Message, state: FSMContext):
+    # Не пускать забаненных!
+    if message.from_user.id in banned_users:
+        await message.answer("Извините, доступ закрыт. Наш сервис только для лиц старше 18 лет.")
+        return
     await state.clear()
     user_state[message.from_user.id] = {"answers": {}, "lang": "ru"}
     await message.answer("Выберите язык:", reply_markup=lang_keyboard())
@@ -109,6 +134,9 @@ async def welcome(message: Message, state: FSMContext):
 
 @dp.message(SurveyState.lang)
 async def choose_lang(message: Message, state: FSMContext):
+    if message.from_user.id in banned_users:
+        await message.answer("Извините, доступ закрыт. Наш сервис только для лиц старше 18 лет.")
+        return
     text = message.text.strip().lower()
     if text not in ("русский", "рус", "ru"):
         await message.answer("Пожалуйста, выберите язык:", reply_markup=lang_keyboard())
@@ -123,6 +151,9 @@ async def choose_lang(message: Message, state: FSMContext):
 
 @dp.message(SurveyState.wait_start)
 async def start_survey(message: Message, state: FSMContext):
+    if message.from_user.id in banned_users:
+        await message.answer("Извините, доступ закрыт. Наш сервис только для лиц старше 18 лет.")
+        return
     user_id = message.from_user.id
     lang = user_state[user_id]["lang"]
     expected = "старт"
@@ -173,7 +204,6 @@ async def ask_next_question(message, user_id, lang, data, state):
         final_phrase = data.get("final_phrase",
             f"Спасибо! Напишите нашему менеджеру {contact_link} для дальнейших инструкций."
         )
-        # Корректно вставляем ссылку в финальную фразу
         final_phrase_ready = render_final_phrase(final_phrase, contact_link)
         await message.answer(final_phrase_ready, reply_markup=ReplyKeyboardRemove())
         await send_results_to_admin(
@@ -189,6 +219,11 @@ async def ask_next_question(message, user_id, lang, data, state):
 
 @dp.message(SurveyState.q)
 async def handle_answer(message: Message, state: FSMContext):
+    # Не принимать ответы от забаненных
+    if message.from_user.id in banned_users:
+        await message.answer("Извините, доступ закрыт. Наш сервис только для лиц старше 18 лет.")
+        await state.clear()
+        return
     user_id = message.from_user.id
     lang = user_state[user_id]["lang"]
     data = load_questions()
@@ -197,16 +232,30 @@ async def handle_answer(message: Message, state: FSMContext):
     q = questions[idx]
     q_text_lower = q["question"].lower()
 
-    is_name_q = NAME_QUESTION in q_text_lower
-    is_country_q = COUNTRY_QUESTION in q_text_lower
-
-    if is_name_q or is_country_q:
-        if not re.fullmatch(r"[a-zA-Zа-яА-ЯёЁ\s\-]+", message.text.strip()):
-            await message.answer(
-                "Пожалуйста, используйте только буквы, пробелы и дефис (без цифр и других символов)!"
-            )
+    # Валидация для каждого вопроса:
+    # 1. "Сколько вам лет?" — только цифры, >= 18
+    if "сколько вам лет" in q_text_lower:
+        if not is_only_digits(message.text.strip()):
+            await message.answer("Пожалуйста, используйте только цифры для возраста.")
+            return
+        age = int(message.text.strip())
+        if age < 18:
+            banned_users.add(user_id)
+            await message.answer("Извините, наш сервис только для лиц старше 18 лет. Доступ закрыт.")
+            await state.clear()
+            return
+    # 2. Вопрос про доход — минимум 50% букв
+    elif "какой доход вы хотите получать" in q_text_lower:
+        if not is_text_with_letters_ratio_or_digits(message.text.strip(), min_ratio=0.5):
+            await message.answer("Пожалуйста, заполните ответ: минимум 50% текста (буквы), остальное могут быть цифры.")
+            return
+    # 3. Остальные текстовые вопросы — минимум 70% букв
+    elif q["type"] == "text":
+        if not is_text_with_letters_ratio(message.text.strip(), min_ratio=0.7):
+            await message.answer("Пожалуйста, заполните ответ: минимум 70% текста (буквы).")
             return
 
+    # Остальной ваш код (валидация выбора)
     is_source_q = ("узнали про компанию" in q_text_lower)
     if q["type"] == "choice":
         if is_source_q:
@@ -254,6 +303,10 @@ async def handle_answer(message: Message, state: FSMContext):
 @dp.message(SurveyState.wait_custom_source)
 async def handle_manual_source(message: Message, state: FSMContext):
     user_id = message.from_user.id
+    if user_id in banned_users:
+        await message.answer("Извините, доступ закрыт. Наш сервис только для лиц старше 18 лет.")
+        await state.clear()
+        return
     lang = user_state[user_id]["lang"]
     if len(message.text.strip()) < 5:
         await message.answer(
@@ -277,9 +330,7 @@ async def on_startup(bot):
     await bot.set_webhook(WEBHOOK_URL)
 
 async def handle(request):
-    # Получаем update как JSON-объект
     update = await request.json()
-    # Передаём update как dict, НЕ body/text и НЕ headers!
     await dp.feed_webhook_update(bot=bot, update=update)
     return web.Response()
 
