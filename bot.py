@@ -278,7 +278,7 @@ import requests
 def keep_alive():
     while True:
         try:
-            requests.get("https://tg-bot-XXXXX.onrender.com")
+            requests.get("https://tg-bot-1d4i.onrender.com")
         except Exception as e:
             print("Ping failed:", e)
         time.sleep(600)  # каждые 10 минут
