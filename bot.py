@@ -271,4 +271,17 @@ async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
+    import threading
+import time
+import requests
+
+def keep_alive():
+    while True:
+        try:
+            requests.get("https://tg-bot-XXXXX.onrender.com")
+        except Exception as e:
+            print("Ping failed:", e)
+        time.sleep(600)  # каждые 10 минут
+
+threading.Thread(target=keep_alive, daemon=True).start()
     asyncio.run(main())
