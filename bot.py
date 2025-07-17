@@ -269,7 +269,7 @@ async def handle_manual_source(message: Message, state: FSMContext):
 
 from aiohttp import web
 
-WEBHOOK_HOST = os.getenv("WEBHOOK_URL")  # например: https://tg-bot-xxxxx.onrender.com
+WEBHOOK_HOST = os.getenv("WEBHOOK_URL")  # Например: https://tg-bot-1d4i.onrender.com
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
@@ -298,4 +298,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
