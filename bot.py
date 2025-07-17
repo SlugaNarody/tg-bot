@@ -269,13 +269,12 @@ async def handle_manual_source(message: Message, state: FSMContext):
 
 from aiohttp import web
 
-WEBHOOK_HOST = os.getenv("WEBHOOK_URL")  # Например: https://tg-bot-1d4i.onrender.com
+WEBHOOK_HOST = os.getenv("WEBHOOK_URL")  # Пример: https://tg-bot-xxxxx.onrender.com
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
 async def on_startup(bot):
     await bot.set_webhook(WEBHOOK_URL)
-    print(f"Webhook set: {WEBHOOK_URL}")
 
 async def handle(request):
     body = await request.text()
@@ -286,13 +285,13 @@ async def main():
     app = web.Application()
     app.router.add_post(WEBHOOK_PATH, handle)
 
+    await on_startup(bot)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 10000)  # Render ждёт порт 10000
+    site = web.TCPSite(runner, "0.0.0.0", 10000)  # Render ждёт открытый порт
     await site.start()
 
-    await on_startup(bot)
-    print("Bot is running with webhook...")
+    print(f"Webhook running at {WEBHOOK_URL}")
     while True:
         await asyncio.sleep(3600)
 
