@@ -48,6 +48,58 @@
       "type": "text"
     }
   ],
+  "en": [
+    {
+      "question": "What is your full name?",
+      "type": "text"
+    },
+    {
+      "question": "How old are you?",
+      "type": "text"
+    },
+    {
+      "question": "Which country are you currently in?",
+      "type": "text"
+    },
+    {
+      "question": "Do you have experience in cryptocurrencies (yes / no)?",
+      "type": "choice",
+      "choices": [
+        "Yes",
+        "No"
+      ]
+    },
+    {
+      "question": "What exactly did you do or are you doing in crypto? (Futures, spot, arbitrage, DeFi, NFT, etc. If you have no experience, write \"no\")",
+      "type": "text",
+      "depends_on": {
+        "question_idx": 3,
+        "values": [
+          "Yes",
+          "yes",
+          "YES"
+        ]
+      }
+    },
+    {
+      "question": "How did you hear about FCK Academy? (Instagram, Telegram, Facebook, TikTok)",
+      "type": "choice",
+      "choices": [
+        "Instagram",
+        "Telegram",
+        "Facebook",
+        "TikTok",
+        "Other"
+      ]
+    },
+    {
+      "question": "What income would you like to receive in the future? When are you ready to start learning and working?\n\n❗️We work only with your own funds and exchanges. We do not provide deposits, do not take other people’s money under management, and do not ask for trusted access❗️",
+      "type": "text"
+    }
+  ],
   "contact_link": "@IrinaNikoleva",
-  "final_phrase": "Мы получили ваши ответы, спасибо за пройденный опрос! Напишите нашему менеджеру {contact_link}. Она подскажет дальнейшие действия и как начать обучение."
+  "final_phrase": {
+    "ru": "Мы получили ваши ответы, спасибо за пройденный опрос! Напишите нашему менеджеру {contact_link}. Она подскажет дальнейшие действия и как начать обучение.",
+    "en": "We have received your answers, thank you for completing the survey! Message our manager {contact_link}. She will explain the next steps and how to start learning."
+  }
 }
