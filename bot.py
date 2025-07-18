@@ -37,7 +37,8 @@ def load_questions():
             return json.load(f)
     except Exception as e:
         print("Error loading questions:", e)
-        return {"ru": []}
+        # для совместимости, если файл пустой или ошибка, возвращаем обе секции
+        return {"ru": [], "en": []}
 
 def save_questions(data):
     with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
@@ -45,12 +46,16 @@ def save_questions(data):
 
 def lang_keyboard():
     return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="Русский")]],
+        keyboard=[[KeyboardButton(text="Русский")], [KeyboardButton(text="English")]],
         resize_keyboard=True, one_time_keyboard=True)
 
 def start_keyboard(lang):
+    if lang == "en":
+        text = "START"
+    else:
+        text = "СТАРТ"
     return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="СТАРТ")]],
+        keyboard=[[KeyboardButton(text=text)]],
         resize_keyboard=True, one_time_keyboard=True)
 
 def choices_keyboard(choices, special_layout=False):
@@ -71,11 +76,28 @@ def choices_keyboard(choices, special_layout=False):
 user_state = {}
 
 WELCOME_TEXT = {
-    "ru": "Благодарим за интерес к нашему проекту. Сейчас вы пройдёте короткий опрос — это поможет нам лучше понять ваши цели и подобрать для вас максимально подходящий путь обучения"
+    "ru": "Благодарим за интерес к нашему проекту. Сейчас вы пройдёте короткий опрос — это поможет нам лучше понять ваши цели и подобрать для вас максимально подходящий путь обучения",
+    "en": "Thank you for your interest in our project. Now you will take a short survey — this will help us better understand your goals and find the most suitable learning path for you."
 }
 
-NAME_QUESTION = "ваше имя и фамилия"
-COUNTRY_QUESTION = "где вы территориально находитесь"
+ERROR_MSG = {
+    "ru": "Дай ответ более корректно и открыто",
+    "en": "Please answer more clearly and openly"
+}
+
+AGE_BLOCK_MSG = {
+    "ru": "Извините, наш сервис только для лиц старше 18 лет. Доступ закрыт.",
+    "en": "Sorry, our service is only for people over 18 years old. Access denied."
+}
+
+NAME_QUESTION = {
+    "ru": "ваше имя и фамилия",
+    "en": "your full name"
+}
+COUNTRY_QUESTION = {
+    "ru": "где вы территориально находитесь",
+    "en": "which country are you currently in"
+}
 
 def render_final_phrase(phrase: str, contact_link: str) -> str:
     link = contact_link.strip()
@@ -124,40 +146,45 @@ def is_text_with_letters_ratio_or_digits(text, min_ratio=0.5):
 @dp.message(F.text.lower().in_({"/start", "start"}))
 async def welcome(message: Message, state: FSMContext):
     if message.from_user.id in banned_users:
-        await message.answer("Извините, доступ закрыт. Наш сервис только для лиц старше 18 лет.")
+        await message.answer(AGE_BLOCK_MSG["ru"] + "\n" + AGE_BLOCK_MSG["en"])
         return
     await state.clear()
     user_state[message.from_user.id] = {"answers": {}, "lang": "ru"}
-    await message.answer("Выберите язык:", reply_markup=lang_keyboard())
+    await message.answer("Выберите язык / Select language:", reply_markup=lang_keyboard())
     await state.set_state(SurveyState.lang)
 
 @dp.message(SurveyState.lang)
 async def choose_lang(message: Message, state: FSMContext):
     if message.from_user.id in banned_users:
-        await message.answer("Извините, доступ закрыт. Наш сервис только для лиц старше 18 лет.")
+        await message.answer(AGE_BLOCK_MSG["ru"] + "\n" + AGE_BLOCK_MSG["en"])
         return
     text = message.text.strip().lower()
-    if text not in ("русский", "рус", "ru"):
-        await message.answer("Пожалуйста, выберите язык:", reply_markup=lang_keyboard())
+    if text in ("русский", "рус", "ru"):
+        lang = "ru"
+    elif text in ("english", "en"):
+        lang = "en"
+    else:
+        await message.answer("Пожалуйста, выберите язык / Please select a language:", reply_markup=lang_keyboard())
         return
-    user_state[message.from_user.id]["lang"] = "ru"
+    user_state[message.from_user.id]["lang"] = lang
     logo_path = os.path.join(MEDIA_DIR, "logo.jpg")
     if os.path.exists(logo_path):
         await message.answer_photo(FSInputFile(logo_path))
-    await message.answer(WELCOME_TEXT["ru"])
-    await message.answer("Начнем опрос!", reply_markup=start_keyboard("ru"))
+    await message.answer(WELCOME_TEXT[lang])
+    await message.answer("Начнем опрос! / Let's start the survey!", reply_markup=start_keyboard(lang))
     await state.set_state(SurveyState.wait_start)
 
 @dp.message(SurveyState.wait_start)
 async def start_survey(message: Message, state: FSMContext):
     if message.from_user.id in banned_users:
-        await message.answer("Извините, доступ закрыт. Наш сервис только для лиц старше 18 лет.")
+        await message.answer(AGE_BLOCK_MSG["ru"] + "\n" + AGE_BLOCK_MSG["en"])
         return
     user_id = message.from_user.id
     lang = user_state[user_id]["lang"]
-    expected = "старт"
+    expected = "старт" if lang == "ru" else "start"
     if message.text.strip().lower() != expected:
-        await message.answer("Нажмите кнопку 'СТАРТ'!", reply_markup=start_keyboard("ru"))
+        msg = "Нажмите кнопку 'СТАРТ'!" if lang == "ru" else "Press the 'START' button!"
+        await message.answer(msg, reply_markup=start_keyboard(lang))
         return
     data = load_questions()
     user_state[user_id]["q_idx"] = 0
@@ -188,7 +215,7 @@ async def ask_next_question(message, user_id, lang, data, state):
                 show_image = False
         if show_image and os.path.exists(img_path):
             await message.answer_photo(FSInputFile(img_path))
-        is_source_q = ("узнали про компанию" in q["question"].lower())
+        is_source_q = ("узнали про компанию" in q["question"].lower() or "how did you hear about" in q["question"].lower())
         if q["type"] == "choice":
             kb = choices_keyboard(
                 q["choices"],
@@ -201,16 +228,20 @@ async def ask_next_question(message, user_id, lang, data, state):
     else:
         contact_link = data.get("contact_link", "@manager")
         final_phrase = data.get("final_phrase",
-            f"Спасибо! Напишите нашему менеджеру {contact_link} для дальнейших инструкций."
+            {
+                "ru": f"Спасибо! Напишите нашему менеджеру {contact_link} для дальнейших инструкций.",
+                "en": f"Thank you! Please message our manager {contact_link} for further instructions."
+            }
         )
-        final_phrase_ready = render_final_phrase(final_phrase, contact_link)
+        lang_final_phrase = final_phrase[lang] if isinstance(final_phrase, dict) else final_phrase
+        final_phrase_ready = render_final_phrase(lang_final_phrase, contact_link)
         await message.answer(final_phrase_ready, reply_markup=ReplyKeyboardRemove())
         await send_results_to_admin(
             message.from_user,
             user_state[user_id]["answers"],
             bot,
             contact_link,
-            final_phrase
+            lang_final_phrase
         )
         await state.clear()
         return
@@ -219,7 +250,7 @@ async def ask_next_question(message, user_id, lang, data, state):
 @dp.message(SurveyState.q)
 async def handle_answer(message: Message, state: FSMContext):
     if message.from_user.id in banned_users:
-        await message.answer("Извините, доступ закрыт. Наш сервис только для лиц старше 18 лет.")
+        await message.answer(AGE_BLOCK_MSG["ru"] + "\n" + AGE_BLOCK_MSG["en"])
         await state.clear()
         return
     user_id = message.from_user.id
@@ -230,55 +261,69 @@ async def handle_answer(message: Message, state: FSMContext):
     q = questions[idx]
     q_text_lower = q["question"].lower()
 
-    ERROR_MSG = "Дай ответ более корректно и открыто"
+    error_msg = ERROR_MSG[lang]
 
-    # 1. "Сколько вам лет?" — только цифры, >= 18
-    if "сколько вам лет" in q_text_lower:
+    # 1. "Сколько вам лет?" / "How old are you?" — только цифры, >= 18
+    if (
+        ("сколько вам лет" in q_text_lower) or
+        ("how old are you" in q_text_lower)
+    ):
         if not is_only_digits(message.text.strip()):
-            await message.answer(ERROR_MSG)
+            await message.answer(error_msg)
             return
         age = int(message.text.strip())
         if age < 18:
             banned_users.add(user_id)
-            await message.answer("Извините, наш сервис только для лиц старше 18 лет. Доступ закрыт.")
+            await message.answer(AGE_BLOCK_MSG[lang])
             await state.clear()
             return
     # 2. Вопрос про доход — минимум 50% букв
-    elif "какой доход вы хотите получать" in q_text_lower:
+    elif (
+        ("какой доход вы хотите получать" in q_text_lower) or
+        ("what income would you like to receive" in q_text_lower)
+    ):
         if not is_text_with_letters_ratio_or_digits(message.text.strip(), min_ratio=0.5):
-            await message.answer(ERROR_MSG)
+            await message.answer(error_msg)
             return
     # 3. Остальные текстовые вопросы — минимум 70% букв
     elif q["type"] == "text":
         if not is_text_with_letters_ratio(message.text.strip(), min_ratio=0.7):
-            await message.answer(ERROR_MSG)
+            await message.answer(error_msg)
             return
 
-    is_source_q = ("узнали про компанию" in q_text_lower)
+    is_source_q = (
+        "узнали про компанию" in q_text_lower or
+        "how did you hear about" in q_text_lower
+    )
     if q["type"] == "choice":
         if is_source_q:
-            if message.text.strip() == "Другое":
+            other_variants = ["другое", "other"]
+            if message.text.strip().lower() in other_variants:
                 user_state[user_id]["awaiting_manual_source"] = True
                 await state.set_state(SurveyState.wait_custom_source)
+                msg = "Пожалуйста, напишите свой вариант (не менее 5 символов):" if lang == "ru" else "Please write your own option (at least 5 characters):"
                 await message.answer(
-                    "Пожалуйста, напишите свой вариант (не менее 5 символов):",
+                    msg,
                     reply_markup=ReplyKeyboardRemove()
                 )
                 return
-            valid_choices = q["choices"]
+            valid_choices = [ch.strip() for ch in q["choices"]]
             if message.text.strip() not in valid_choices:
-                await message.answer(ERROR_MSG, reply_markup=choices_keyboard(valid_choices, special_layout=True))
+                await message.answer(error_msg, reply_markup=choices_keyboard(valid_choices, special_layout=True))
                 return
         else:
             valid_choices = [ch.strip() for ch in q["choices"]]
             if message.text.strip() not in valid_choices:
-                await message.answer(ERROR_MSG, reply_markup=choices_keyboard(valid_choices))
+                await message.answer(error_msg, reply_markup=choices_keyboard(valid_choices))
                 return
 
     user_state[user_id]["answers"][f"q{idx+1}"] = message.text
-    is_exp_q = ("опыт в сфере криптовалют" in q_text_lower)
+    is_exp_q = (
+        "опыт в сфере криптовалют" in q_text_lower or
+        "experience in cryptocurrencies" in q_text_lower
+    )
     if is_exp_q:
-        if message.text.strip().lower() == "нет":
+        if message.text.strip().lower() in ["нет", "no"]:
             for i in range(idx + 1, len(questions)):
                 qn = questions[i]
                 if "depends_on" in qn and qn["depends_on"]["question_idx"] == idx:
@@ -295,13 +340,14 @@ async def handle_answer(message: Message, state: FSMContext):
 @dp.message(SurveyState.wait_custom_source)
 async def handle_manual_source(message: Message, state: FSMContext):
     user_id = message.from_user.id
+    lang = user_state[user_id]["lang"]
     if user_id in banned_users:
-        await message.answer("Извините, доступ закрыт. Наш сервис только для лиц старше 18 лет.")
+        await message.answer(AGE_BLOCK_MSG["ru"] + "\n" + AGE_BLOCK_MSG["en"])
         await state.clear()
         return
-    lang = user_state[user_id]["lang"]
-    if len(message.text.strip()) < 5:
-        await message.answer("Дай ответ более корректно и открыто")
+    min_len = 5
+    if len(message.text.strip()) < min_len:
+        await message.answer(ERROR_MSG[lang])
         return
     idx = user_state[user_id]["q_idx"]
     user_state[user_id]["answers"][f"q{idx+1}"] = message.text
