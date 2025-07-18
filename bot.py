@@ -40,10 +40,6 @@ def load_questions():
         # для совместимости, если файл пустой или ошибка, возвращаем обе секции
         return {"ru": [], "en": []}
 
-def save_questions(data):
-    with open(QUESTIONS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
 def lang_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="Русский")], [KeyboardButton(text="English")]],
@@ -90,15 +86,6 @@ AGE_BLOCK_MSG = {
     "en": "Sorry, our service is only for people over 18 years old. Access denied."
 }
 
-NAME_QUESTION = {
-    "ru": "ваше имя и фамилия",
-    "en": "your full name"
-}
-COUNTRY_QUESTION = {
-    "ru": "где вы территориально находитесь",
-    "en": "which country are you currently in"
-}
-
 def render_final_phrase(phrase: str, contact_link: str) -> str:
     link = contact_link.strip()
     if not link.startswith("@"):
@@ -121,7 +108,6 @@ async def send_results_to_admin(user, answers, bot, contact_link, final_phrase):
     text += f"\nФраза для пользователя: {render_final_phrase(final_phrase, contact_link)}"
     await bot.send_message(ADMIN_ID, text)
 
-# Бан-лист для пользователей младше 18 лет
 banned_users = set()
 
 def is_only_digits(text):
