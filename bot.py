@@ -46,7 +46,7 @@ def lang_keyboard():
 
 def start_keyboard(lang):
     if lang == "en":
-        text = "START"
+        text = "STАRT"
     else:
         text = "СТАРТ"
     return ReplyKeyboardMarkup(
