@@ -37,7 +37,6 @@ def load_questions():
             return json.load(f)
     except Exception as e:
         print("Error loading questions:", e)
-        # для совместимости, если файл пустой или ошибка, возвращаем обе секции
         return {"ru": [], "en": []}
 
 def lang_keyboard():
@@ -135,7 +134,7 @@ async def welcome(message: Message, state: FSMContext):
         await message.answer(AGE_BLOCK_MSG["ru"] + "\n" + AGE_BLOCK_MSG["en"])
         return
     await state.clear()
-    user_state[message.from_user.id] = {"answers": {}, "lang": "ru"}
+    user_state[message.from_user.id] = {"answers": {}}  # Не задаём язык заранее!
     await message.answer("Выберите язык / Select language:", reply_markup=lang_keyboard())
     await state.set_state(SurveyState.lang)
 
@@ -166,7 +165,7 @@ async def start_survey(message: Message, state: FSMContext):
         await message.answer(AGE_BLOCK_MSG["ru"] + "\n" + AGE_BLOCK_MSG["en"])
         return
     user_id = message.from_user.id
-    lang = user_state[user_id]["lang"]
+    lang = user_state[user_id].get("lang", "ru")
     expected = "старт" if lang == "ru" else "start"
     if message.text.strip().lower() != expected:
         msg = "Нажмите кнопку 'СТАРТ'!" if lang == "ru" else "Press the 'START' button!"
@@ -240,7 +239,7 @@ async def handle_answer(message: Message, state: FSMContext):
         await state.clear()
         return
     user_id = message.from_user.id
-    lang = user_state[user_id]["lang"]
+    lang = user_state[user_id].get("lang", "ru")
     data = load_questions()
     idx = user_state[user_id]["q_idx"]
     questions = data[lang]
@@ -326,7 +325,7 @@ async def handle_answer(message: Message, state: FSMContext):
 @dp.message(SurveyState.wait_custom_source)
 async def handle_manual_source(message: Message, state: FSMContext):
     user_id = message.from_user.id
-    lang = user_state[user_id]["lang"]
+    lang = user_state[user_id].get("lang", "ru")
     if user_id in banned_users:
         await message.answer(AGE_BLOCK_MSG["ru"] + "\n" + AGE_BLOCK_MSG["en"])
         await state.clear()
