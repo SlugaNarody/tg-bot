@@ -81,10 +81,7 @@ FCK Academy (от англ. Finance Crypto Knowledge) — современная
 
 — Постоянная практика на реальном рынке  
 — Поддержка на каждом этапе  
-— Возможность зарабатывать из любой точки мира"""
-}
-
-",
+— Возможность зарабатывать из любой точки мира""",
     "en": "Thank you for your interest in our project. Now you will take a short survey — this will help us better understand your goals and find the most suitable learning path for you."
 }
 
